@@ -23,7 +23,7 @@ void reload(sol::state& lua)
 {
 	try
 	{
-		lua.script_file("../scripts/main.lua", sol::default_on_error);
+		lua.script_file("scripts//main.lua", sol::default_on_error);
 	}
 	catch (sol::error& err)
 	{
@@ -67,7 +67,7 @@ void main(int argc, char** argv)
 	// Add our scripts folder to the path
 	{
 		std::string path = lua["package"]["path"];
-		path = path + ";../scripts/?.lua";
+		path = path + ";scripts//?.lua";
 		lua["package"]["path"] = path;
 	}
 
