@@ -1,3 +1,25 @@
+/*
+	Copyright (c) 2017 Ian Diaz
+
+	Permission is hereby granted, free of charge, to any person obtaining a copy
+	of this software and associated documentation files (the "Software"), to deal
+	in the Software without restriction, including without limitation the rights
+	to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+	copies of the Software, and to permit persons to whom the Software is
+	furnished to do so, subject to the following conditions:
+
+	The above copyright notice and this permission notice shall be included in all
+	copies or substantial portions of the Software.
+
+	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+	AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+	OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+	SOFTWARE.
+*/
+
 #include "lua_scheduler.h"
 
 lua::Scheduler::Scheduler(sol::state & state, const double& time) : m_state(state), m_time(time){
@@ -18,9 +40,14 @@ lua::Scheduler::~Scheduler()
 	RunQueue();
 }
 
-void lua::Scheduler::Schedule(sol::coroutine coroutine)
+void lua::Scheduler::Schedule(const sol::coroutine& coroutine)
 {
-	m_ready.push(coroutine);
+	m_ready.push(ready_task(coroutine));
+}
+
+void lua::Scheduler::Schedule(const std::function<void()>& func)
+{
+	m_ready.push(ready_task(func));
 }
 
 void lua::Scheduler::RunQueue()
@@ -51,38 +78,49 @@ void lua::Scheduler::RunQueue()
 	while (m_ready.size() > 0)
 	{
 		auto task = m_ready.front();
-		std::pair<bool, sol::table> ret = m_state["coroutine"]["resume"](task);
-		m_ready.pop();
-		std::string st = m_state["coroutine"]["status"](task);
-		if (st == "dead")
-			continue;
-
-		sol::table result = ret.second;
-		if (result.valid())
+		if (task.isFunc)
 		{
-			double time = result.get_or("wake_time", 0);
-			if (time > 0)
-			{
-				sleeping_coroutine sleep;
-				sleep.routine = task;
-				sleep.wake_time = m_time + time;
-
-				m_sleeping.push_back(sleep);
-				std::sort(m_sleeping.begin(), m_sleeping.end());
-			}
-			else if (result["wake_func"].valid())
-			{
-				sol::function wake_func = result["wake_func"];
-				waiting_coroutine sleep;
-				sleep.routine = task;
-				sleep.wake_func = wake_func;
-
-				m_waiting.push_back(sleep);
-			}
-			else
-				Schedule(task);
+			// Run it, it's a one-off
+			task.func();
 		}
 		else
-			Schedule(task);
+		{
+			std::pair<bool, sol::table> ret = m_state["coroutine"]["resume"](task.routine);
+			m_ready.pop();
+			std::string st = m_state["coroutine"]["status"](task.routine);
+			if (st == "dead")
+				continue;
+
+			sol::table result = ret.second;
+			if (result.valid())
+			{
+				double time = result.get_or("wake_time", 0);
+				if (time > 0)
+				{
+					sleeping_coroutine sleep;
+					sleep.routine = task.routine;
+					sleep.wake_time = m_time + time;
+
+					m_sleeping.push_back(sleep);
+					std::sort(m_sleeping.begin(), m_sleeping.end());
+				}
+				else if (result["wake_func"].valid())
+				{
+					sol::function wake_func = result["wake_func"];
+					waiting_coroutine sleep;
+					sleep.routine = task.routine;
+					sleep.wake_func = wake_func;
+
+					m_waiting.push_back(sleep);
+				}
+				else
+					Schedule(task.routine);
+			}
+			else
+				Schedule(task.routine);
+		}
 	}
 }
+
+lua::Scheduler::ready_task::ready_task(const sol::coroutine & co) : routine(co), isFunc(false){}
+lua::Scheduler::ready_task::ready_task(const std::function<void()>& f) : func(f), isFunc(true){}
