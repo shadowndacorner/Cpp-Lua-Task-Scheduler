@@ -22,7 +22,7 @@
 	SOFTWARE.
 ]]--
 
-local Tasks = {}
+Tasks = {}
 local task_internal = _InternalTasks
 
 _InternalTasks=nil
