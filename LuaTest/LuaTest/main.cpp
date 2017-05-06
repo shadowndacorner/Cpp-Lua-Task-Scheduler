@@ -67,7 +67,7 @@ void main(int argc, char** argv)
 	// Add our scripts folder to the path
 	{
 		std::string path = lua["package"]["path"];
-		path = path + ";scripts//?.lua";
+		path = path + ";scripts//?.lua;scripts//include/?.lua";
 		lua["package"]["path"] = path;
 	}
 

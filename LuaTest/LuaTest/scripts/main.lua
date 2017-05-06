@@ -1,5 +1,5 @@
 print("Loading main script")
-local Tasks = require("include/task_scheduler.lua")
+local Tasks = require("task_scheduler")
 
 function sleep()
 	local start = CurTime()
